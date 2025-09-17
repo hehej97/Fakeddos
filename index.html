@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Load Test — Obf Demo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body{background:#f1f5f9}
+    #fx{position:fixed;pointer-events:none;left:0;top:0;width:100%;height:100%;overflow:hidden;z-index:9999}
+    .fx-x{position:absolute;font-size:20px;transform:translateY(-50%);user-select:none;will-change:transform,opacity;animation-timing-function:linear}
+    @keyframes flyRight{from{transform:translateX(-10%) translateY(-50%) scale(1);opacity:1}to{transform:translateX(110%) translateY(-50%) scale(.6);opacity:0}}
+    .fx-green{color:#10b981;text-shadow:0 0 6px rgba(16,185,129,.6)}
+    .fx-red{color:#ef4444;text-shadow:0 0 6px rgba(239,68,68,.6)}
+    #greetOverlay{position:fixed;left:0;top:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,rgba(0,0,0,.6),rgba(0,0,0,.45));z-index:10000}
+    #greetBox{background:white;padding:28px;border-radius:12px;box-shadow:0 10px 30px rgba(2,6,23,.3);text-align:center;min-width:260px}
+    #greetBox h1{font-size:20px;margin-bottom:8px}
+    #greetBox button{margin-top:12px}
+    #log{height:180px;overflow:auto}
+  </style>
+</head>
+<body>
+  <div class="max-w-6xl mx-auto p-6">
+    <div class="bg-white p-6 rounded-2xl shadow">
+      <h1 class="text-2xl font-bold mb-2">Load Test Controller — Obfuscated UI</h1>
+      <p class="text-sm text-gray-600 mb-4">Demo có obf. Chỉ test target bạn được phép.</p>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <div class="mb-2">
+            <label class="block mb-1 text-sm font-medium">Thêm target</label>
+            <div class="flex gap-2">
+              <input id="newTarget" class="flex-1 border rounded px-3 py-2" placeholder="https://example.com/">
+              <button id="addTarget" class="bg-blue-600 text-white px-3 py-2 rounded">Thêm</button>
+            </div>
+          </div>
+          <div>
+            <label class="block mb-1 text-sm font-medium">Danh sách targets</label>
+            <ul id="targetList" class="space-y-2 max-h-48 overflow-auto p-2 bg-gray-50 rounded border"></ul>
+          </div>
+        </div>
+
+        <div>
+          <label class="block mb-1 text-sm font-medium">Thiết lập test</label>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs text-gray-600">Concurrency</label>
+              <input id="concurrency" type="number" class="w-full border rounded px-3 py-2" value="5" min="1">
+            </div>
+            <div>
+              <label class="block text-xs text-gray-600">Tổng request</label>
+              <input id="total" type="number" class="w-full border rounded px-3 py-2" value="50" min="1">
+            </div>
+            <div>
+              <label class="block text-xs text-gray-600">Delay (ms)</label>
+              <input id="delay" type="number" class="w-full border rounded px-3 py-2" value="50" min="0">
+            </div>
+
+            <div class="flex gap-2">
+              <button id="start" class="bg-green-600 text-white px-4 py-2 rounded">Bắt đầu</button>
+              <button id="stop" class="bg-red-600 text-white px-4 py-2 rounded">Dừng</button>
+              <button id="status" class="bg-indigo-600 text-white px-4 py-2 rounded">Lấy trạng thái</button>
+            </div>
+
+            <div class="text-sm text-gray-500 pt-2">
+              <strong>Target đang chọn:</strong> <span id="currentTarget" class="font-medium">—</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="block mb-1 text-sm font-medium">Thống kê nhanh</label>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-gray-50 p-3 rounded border text-center">
+              <div class="text-xs text-gray-500">Đã gửi</div>
+              <div id="sent" class="text-xl font-bold">0</div>
+            </div>
+            <div class="bg-gray-50 p-3 rounded border text-center">
+              <div class="text-xs text-gray-500">Thành công</div>
+              <div id="success" class="text-xl font-bold">0</div>
+            </div>
+            <div class="bg-gray-50 p-3 rounded border text-center">
+              <div class="text-xs text-gray-500">Lỗi</div>
+              <div id="error" class="text-xl font-bold">0</div>
+            </div>
+            <div class="bg-gray-50 p-3 rounded border text-center">
+              <div class="text-xs text-gray-500">Avg ms</div>
+              <div id="avg" class="text-xl font-bold">0</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h2 class="text-lg font-semibold mt-6">Log realtime</h2>
+      <div id="log" class="mt-2 bg-black text-white p-3 rounded text-xs"></div>
+
+      <h2 class="text-lg font-semibold mt-6">Sự kiện gần nhất</h2>
+      <div class="overflow-auto mt-2">
+        <table class="w-full text-sm border">
+          <thead class="bg-gray-100">
+            <tr><th class="p-2">#</th><th class="p-2">Target</th><th class="p-2">Status</th><th class="p-2">Time</th><th class="p-2">Note</th></tr>
+          </thead>
+          <tbody id="eventsTable" class="text-xs"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="fx"></div>
+
+  <!-- greeting overlay -->
+  <div id="greetOverlay" style="display:none">
+    <div id="greetBox">
+      <h1 id="greetTitle">Xin chào người dùng</h1>
+      <p id="greetSub" style="color:#6b7280">Chào mừng bạn đến với demo. Nhấn nút để tiếp tục.</p>
+      <button id="greetBtn" class="mt-3 bg-sky-600 text-white px-4 py-2 rounded">Tiếp tục</button>
+    </div>
+  </div>
+
+  <!-- OBFUSCATED SCRIPT -->
+  <script>
+(function(){
+  // heavy obfuscation pattern: encoded strings + small runtime decoder
+  var _0x5a3c = ['bG9n','Z2V0','c2V0','c3RhdHVz','c3RhcnQ=','c3RvcA==','c3RhdHVzQnV0dG9u','dGFyZ2V0','Y29uY3VycmVuY3k=','dG90YWw=','ZGVsYXlNcw==','c2VydmVy','L2FwaS9zdGFydA==','L2FwaS9zdG9w','L2FwaS9zdGF0dXM=','dGV4dENvbnRlbnQ=','YXBwZW5k','Y3JlYXRlRWxlbWVudA==','c3RyaW5n','bWlu','bWF4','c3RhdHM=','b2s=','ZXZlbnQ=','bG9nVGV4dA==','c3VjY2Vzcw==','ZXJyb3I=','ZWNobw==','c3dpdGNo','cXVlcnk=','aGVhZA==','bGFzdA==','Zmx5','Z3JlZW4=','cmVk'];
+  // decode helper (base64)
+  function _0xdec(s){ try{ return atob(s);}catch(e){return s;} }
+  // map numbers to decoded strings
+  var _0x = function(i){ return _0xdec(_0x5a3c[i]); };
+
+  // small helpers with obfuscated names
+  var _a = function(u){ return document.querySelector(u); };
+  var _c = function(t){ return document.createElement(t); };
+  var _e = function(k,v){ if(k) k.textContent = v; };
+
+  // STATE
+  var S = { targets:[], sel:null, evtCount:0 };
+
+  // UI EL
+  var newT = _a('#newTarget'), addB=_a('#addTarget'), tList=_a('#targetList'), cur=_a('#currentTarget');
+  var startB=_a('#start'), stopB=_a('#stop'), statusB=_a('#status');
+  var log=_a('#log'), events=_a('#eventsTable');
+  var sent=_a('#sent'), success=_a('#success'), error=_a('#error'), avg=_a('#avg');
+  var fx=_a('#fx');
+
+  // greet overlay
+  var gO = _a('#greetOverlay'), gBtn=_a('#greetBtn'), gTitle=_a('#greetTitle');
+
+  // initial small delay then show greet
+  (function showG(){
+    gO.style.display='flex';
+    // gentle animation (not heavy)
+    setTimeout(function(){},200);
+  })();
+
+  gBtn.onclick = function(){
+    gO.style.display='none';
+  };
+
+  // core functions obfuscated names
+  function _add(url){
+    if(!url) return;
+    var id = Date.now().toString(36)+(Math.random().toString(36).slice(2,6));
+    S.targets.unshift({id:id,url:url});
+    if(!S.sel) S.sel = id;
+    _render();
+  }
+
+  function _remove(id){
+    var i=S.targets.findIndex(function(x){return x.id===id;});
+    if(i>=0) S.targets.splice(i,1);
+    if(S.sel===id) S.sel = S.targets.length?S.targets[0].id:null;
+    _render();
+  }
+
+  function _select(id){ S.sel=id; _render(); }
+
+  function _render(){
+    tList.innerHTML='';
+    S.targets.forEach(function(t){
+      var li=_c('li'); li.className='flex items-center justify-between';
+      li.innerHTML = '<div class="flex items-center gap-2"><input type="radio" name="sel" '+(t.id===S.sel?'checked':'')+' data-id="'+t.id+'"><div class="ml-2 text-sm break-all">'+t.url+'</div></div><div class="flex gap-2"><button data-id="'+t.id+'" class="rm text-xs text-red-600">Xóa</button><button data-id="'+t.id+'" class="cp text-xs text-gray-600">Sao</button></div>';
+      tList.appendChild(li);
+    });
+    cur.textContent = (S.targets.find(function(x){return x.id===S.sel;})||{url:'—'}).url;
+    // bind
+    tList.querySelectorAll('input[name="sel"]').forEach(function(r){ r.onchange = function(){ _select(this.dataset.id); }; });
+    tList.querySelectorAll('.rm').forEach(function(b){ b.onclick=function(){ _remove(this.dataset.id); }; });
+    tList.querySelectorAll('.cp').forEach(function(b){ b.onclick=function(){ var u=S.targets.find(function(z){return z.id===this.dataset.id;}).url; navigator.clipboard.writeText(u).then(function(){ _alog({level:'info',msg:'Copied '+u}); }).catch(()=>{}); }; });
+  }
+
+  addB.onclick = function(){ _add(newT.value.trim()); newT.value=''; };
+
+  // logging
+  function _alog(o){
+    var line = '['+ (new Date()).toLocaleTimeString() +'] '+ JSON.stringify(o);
+    log.textContent = line + '\\n' + log.textContent;
+  }
+
+  function _pushEvent(d){
+    S.evtCount++;
+    var tr = _c('tr'); tr.innerHTML = '<td class="p-1 border">'+S.evtCount+'</td><td class="p-1 border break-all">'+((S.targets.find(function(x){return x.id===S.sel;})||{url:'-'}) .url)+'</td><td class="p-1 border">'+(d.status||'-')+'</td><td class="p-1 border">'+(d.timeMs!==undefined?d.timeMs:'-')+'</td><td class="p-1 border">'+(d.message?d.message:(d.ok?'ok':''))+'</td>';
+    events.prepend(tr);
+    while(events.children.length>200) events.removeChild(events.lastChild);
+  }
+
+  // flying X
+  function _spawn(c,d){
+    var el = _c('div'); el.className = 'fx-x '+(c==='g'?'fx-green':'fx-red'); el.textContent='✕';
+    var y = Math.random()*90 + 5; el.style.top = y + '%'; el.style.left='-5%';
+    var dur = 1500 + Math.random()*1200, delay = Math.random()*300;
+    el.style.animation = 'flyRight '+dur+'ms linear forwards'; el.style.animationDelay = delay+'ms';
+    fx.appendChild(el);
+    setTimeout(function(){ try{ fx.removeChild(el);}catch(e){} }, dur+delay+200);
+  }
+
+  // SSE connect
+  var ES = null;
+  function _connect(){
+    try{ if(ES) ES.close(); ES = new EventSource('/api/events'); }catch(e){ _alog({level:'error',msg:'SSE fail'}); return; }
+    ES.addEventListener('log', function(ev){
+      var d = JSON.parse(ev.data); _alog(d); _pushEvent(d);
+      // update stats
+      fetch('/api/status').then(function(r){ return r.json(); }).then(function(j){ if(j.active) _updateStats(j.stats); }).catch(function(){});
+      if(d.ok===true) _spawn('g',d); else if(d.ok===false) _spawn('r',d);
+    });
+    ES.addEventListener('done', function(ev){ var d=JSON.parse(ev.data); _alog({level:'done',data:d}); _updateStats(d); });
+    ES.addEventListener('info', function(ev){ var d=JSON.parse(ev.data); _alog({level:'info',data:d}); });
+    ES.onerror = function(){ _alog({level:'error',msg:'EventSource error'}); };
+  }
+
+  // stats update
+  function _updateStats(s){
+    sent.textContent = s.sent||0; success.textContent = s.success||0; error.textContent = s.error||0; avg.textContent = s.avgTimeMs||0;
+  }
+
+  // start/stop/status handlers
+  startB.onclick = function(){
+    if(!S.sel) return alert('Chọn target');
+    var t = S.targets.find(function(x){return x.id===S.sel;});
+    var concurrency = Number(document.getElementById('concurrency').value)||1;
+    var total = Number(document.getElementById('total').value)||1;
+    var delay = Number(document.getElementById('delay').value)||0;
+    _alog({cmd:'start',target:t.url,concurrency:concurrency,total:total,delay:delay});
+    fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target:t.url,concurrency:concurrency,totalRequests:total,delayMs:delay})}).then(function(r){ return r.json().then(function(j){ if(!r.ok){ _alog({level:'error',msg:j.error||'Start failed'}); alert('Start failed: '+(j.error||'unknown')); } else { _alog({level:'info',msg:'Started id='+j.id}); _connect(); } }); }).catch(function(e){ _alog({level:'error',msg:e.message}); });
+  };
+
+  stopB.onclick = function(){ fetch('/api/stop',{method:'POST'}).then(function(r){ return r.json(); }).then(function(j){ _alog({cmd:'stop',resp:j}); }).catch(function(e){ _alog({level:'error',msg:e.message}); }); };
+
+  statusB.onclick = function(){ fetch('/api/status').then(function(r){ return r.json(); }).then(function(j){ if(!j.active) _alog({level:'info',msg:'No active run'}); else { _alog({level:'info',msg:'Status updated'}); _updateStats(j.stats); } }).catch(function(e){ _alog({level:'error',msg:e.message}); }); };
+
+  // initial demo targets
+  _add('http://localhost:3000/'); _add('https://github.com/');
+  // finalize render
+  _render();
+
+  // expose minimal debug (obfuscated name)
+  window['\x5f\x5f\x62\x78'] = { add:_add, remove:_remove, select:_select };
+})();
+  </script>
+</body>
+</html>
